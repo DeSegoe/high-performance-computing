@@ -4,7 +4,7 @@
 #include "bmp_image_util.h"
 
 void otsu(uchar* image, const uint WIDTH, const uint HEIGHT) {
-      printf("Thread [%d]: Starting Serial Otsu serial segmentation\n",omp_get_thread_num());
+      printf("Thread [%d]: Starting Otsu segmentation\n",omp_get_thread_num());
 
     const uint SIZE = WIDTH*HEIGHT;
     int histogram[256];
@@ -20,6 +20,7 @@ void otsu(uchar* image, const uint WIDTH, const uint HEIGHT) {
 
     //calculate the histogram
     uint sum = 0;
+    #pragma omp parallel for
     for (int i=0;i<SIZE;i++) {
         uchar pixelIntensity = image[i];
         sum+=pixelIntensity;
@@ -76,9 +77,7 @@ void otsu(uchar* image, const uint WIDTH, const uint HEIGHT) {
         else
             *(image+i) = 0;
     }
-    
-
-    printf("Thread [%d]: The Serial Threshhold is %d\n",omp_get_thread_num(), threshHold);
+    printf("Thread [%d]: The Threshhold is %d\n",omp_get_thread_num(), threshHold);
 }
 
 void validate(int argc,char** argv) {
@@ -90,16 +89,21 @@ void validate(int argc,char** argv) {
 
 struct BmpImage performOtsuThresholding(struct BmpImage bmpImage) {
     ulong start = omp_get_wtick();
-    #pragma omp parallel sections
+    #pragma omp parallel
     {
-        #pragma omp section
-        otsu(bmpImage.r_channel,bmpImage.image_width,bmpImage.image_height);
-        #pragma omp section
-        otsu(bmpImage.g_channel,bmpImage.image_width,bmpImage.image_height);
-        #pragma omp section
-        otsu(bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
+        #pragma omp single
+        {
+            #pragma omp taskgroup
+            {
+                #pragma omp task
+                otsu(bmpImage.r_channel,bmpImage.image_width,bmpImage.image_height);
+                #pragma omp task
+                otsu(bmpImage.g_channel,bmpImage.image_width,bmpImage.image_height);
+                #pragma omp task
+                otsu(bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
+            }
+        }
     }
-   
    
     ulong end = omp_get_wtick();
     printf("Duration %u\n",end-start);
@@ -112,7 +116,7 @@ int main(int argc, char** argv) {
     struct BmpImage bmpImage = loadWindowsBpm(filePath);
     displayBpmImageMetaData(bmpImage);
     bmpImage = performOtsuThresholding(bmpImage);
-    writeBpmImage("./data/output.bmp",bmpImage);
+    writeBpmImage("./data/otsu_output.bmp",bmpImage);
     disposeWindowsBpm(bmpImage);
     return 0;
 }
