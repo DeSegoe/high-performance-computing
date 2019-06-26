@@ -280,26 +280,64 @@ void validate(int argc,char** argv) {
     }
 }
 
-void performEdgeDetection(struct BmpImage bmpImage) {
-    ulong start = omp_get_wtick();
-
+void performEdgeDetectionOnGrayScaleVersionOfColorImage(char* filePath) {
+    struct BmpImage bmpImage = loadWindowsBpm(filePath);
+     ulong start = omp_get_wtick();
     uchar* grayscale = grayScale(bmpImage.r_channel,bmpImage.g_channel,bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
     edgeDetection(grayscale,bmpImage.image_width,bmpImage.image_height);
     emphasizeEdge(grayscale,bmpImage.r_channel,bmpImage.g_channel,bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
     writeBpmImage("./data/sharpened_output.bmp",bmpImage);
     replaceEdge(grayscale,bmpImage.r_channel,bmpImage.g_channel,bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
     writeBpmImage("./data/edge_output.bmp",bmpImage);
-    free(grayscale);
+   
     ulong end = omp_get_wtick();
     printf("Duration %u\n",end-start);
+    free(grayscale);
+    disposeWindowsBpm(bmpImage);
+}
+
+uchar* createImageCopy(uchar* original,const uint size) {
+    uchar* copy = (uchar*) malloc(size);
+    memcpy(copy,original,size);
+    return copy;
+}
+
+void edgeDetectionOnColorImage(char* filePath) {
+    struct BmpImage bmpImage = loadWindowsBpm(filePath);
+    ulong start = omp_get_wtick();
+    int size = bmpImage.image_width*bmpImage.image_height;
+    uchar* r_channel = createImageCopy(bmpImage.r_channel,size);
+    uchar* g_channel = createImageCopy(bmpImage.g_channel,size);
+    uchar* b_channel = createImageCopy(bmpImage.b_channel,size);
+
+    edgeDetection(bmpImage.r_channel,bmpImage.image_width,bmpImage.image_height);
+    edgeDetection(bmpImage.g_channel,bmpImage.image_width,bmpImage.image_height);
+    edgeDetection(bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
+
+    writeBpmImage("./data/color_edges.bmp",bmpImage);
+
+    for (int i=0;i<size;i++) {
+        bmpImage.r_channel[i] = bmpImage.r_channel[i]==255? 0:r_channel[i];
+        bmpImage.g_channel[i] = bmpImage.g_channel[i]==255? 0:g_channel[i];
+        bmpImage.b_channel[i] = bmpImage.b_channel[i]==255? 0:b_channel[i];
+    }
+
+    writeBpmImage("./data/sharpened_using_color_edges.bmp",bmpImage);
+
+    ulong end = omp_get_wtick();
+    printf("Duration %u\n",end-start);
+    free(r_channel);
+    free(g_channel);
+    free(b_channel);
+    disposeWindowsBpm(bmpImage);
 }
 
 int main(int argc, char** argv) {
     validate(argc,argv);
     char* filePath = argv[1];
-    struct BmpImage bmpImage = loadWindowsBpm(filePath);
-    displayBpmImageMetaData(bmpImage);
-    performEdgeDetection(bmpImage);
-    disposeWindowsBpm(bmpImage);
+   
+    performEdgeDetectionOnGrayScaleVersionOfColorImage(filePath);
+    edgeDetectionOnColorImage(filePath);
+
     return 0;
 }
