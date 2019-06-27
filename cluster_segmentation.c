@@ -29,7 +29,7 @@ struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
     int NUMBER_OF_CLUSTERS;
     printf("Please enter the number of centroids:");
     scanf("%d",&NUMBER_OF_CLUSTERS);
-    ulong start = omp_get_wtime();
+    double start = omp_get_wtime();
     const uint size = bmpImage.image_height*bmpImage.image_width;
     uchar* clusters_indexes = (uchar*) malloc(size);
     struct Centroid* centroids = (struct Centroid*) malloc(sizeof(struct Centroid)*NUMBER_OF_CLUSTERS);
@@ -80,15 +80,15 @@ struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
                 clusters_indexes[i] = selectedIndex;
                 ithPixel = createCentroid(bmpImage,selectedIndex);
             }
+        }
 
-            struct Centroid allocatedCentroid = aggregates[selectedIndex];
-            #pragma omp critical
-            {
-                allocatedCentroid.r+=ithPixel.r;
-                allocatedCentroid.g+=ithPixel.g;
-                allocatedCentroid.b+=ithPixel.b;
-                allocatedCentroid.count++;
-            }
+        for (int i=0;i<size;i++) {
+            struct Centroid ithPixel = createCentroid(bmpImage,i);
+            struct Centroid allocatedCentroid = aggregates[clusters_indexes[i]];
+            allocatedCentroid.r+=ithPixel.r;
+            allocatedCentroid.g+=ithPixel.g;
+            allocatedCentroid.b+=ithPixel.b;
+            allocatedCentroid.count++;
         }
 
         for (int i=0;i<NUMBER_OF_CLUSTERS;i++) {
@@ -116,8 +116,8 @@ struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
    free(centroids);
    free(aggregates);
    free(clusters_indexes);
-   ulong end = omp_get_wtime();
-   printf("Duration %u\n",end-start);
+   double end = omp_get_wtime();
+   printf("Duration %.6f\n",end-start);
    return bmpImage;
 }
 

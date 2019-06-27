@@ -180,6 +180,7 @@ void edgeDetection(uchar* image, const uint WIDTH, const uint HEIGHT) {
 
     //calculate magnitude and direction
     double maximumMagnitude = 0;
+    #pragma omp parallel for reduction(max:maximumMagnitude)
     for (int i=0;i<SIZE;i++) {
         float gx = horizontalEdges[i];
         float gy = verticalEdges[i];
@@ -304,18 +305,31 @@ uchar* createImageCopy(uchar* original,const uint size) {
 
 void edgeDetectionOnColorImage(char* filePath) {
     struct BmpImage bmpImage = loadWindowsBpm(filePath);
-    ulong start = omp_get_wtick();
+    double start = omp_get_wtick();
     int size = bmpImage.image_width*bmpImage.image_height;
     uchar* r_channel = createImageCopy(bmpImage.r_channel,size);
     uchar* g_channel = createImageCopy(bmpImage.g_channel,size);
     uchar* b_channel = createImageCopy(bmpImage.b_channel,size);
 
-    edgeDetection(bmpImage.r_channel,bmpImage.image_width,bmpImage.image_height);
-    edgeDetection(bmpImage.g_channel,bmpImage.image_width,bmpImage.image_height);
-    edgeDetection(bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
+    #pragma omp parallel
+    {
+        #pragma omp single
+        {
+            #pragma omp taskgroup
+            {
+                #pragma omp task
+                edgeDetection(bmpImage.r_channel,bmpImage.image_width,bmpImage.image_height);
+                #pragma omp task
+                edgeDetection(bmpImage.g_channel,bmpImage.image_width,bmpImage.image_height);
+                #pragma omp task
+                edgeDetection(bmpImage.b_channel,bmpImage.image_width,bmpImage.image_height);
+            }
+        }
+    }
 
     writeBpmImage("./data/color_edges.bmp",bmpImage);
 
+    #pragma omp parallel for
     for (int i=0;i<size;i++) {
         bmpImage.r_channel[i] = bmpImage.r_channel[i]==255? 0:r_channel[i];
         bmpImage.g_channel[i] = bmpImage.g_channel[i]==255? 0:g_channel[i];
@@ -324,8 +338,8 @@ void edgeDetectionOnColorImage(char* filePath) {
 
     writeBpmImage("./data/sharpened_using_color_edges.bmp",bmpImage);
 
-    ulong end = omp_get_wtick();
-    printf("Duration %u\n",end-start);
+    double end = omp_get_wtick();
+    printf("Duration %.8f\n",end-start);
     free(r_channel);
     free(g_channel);
     free(b_channel);

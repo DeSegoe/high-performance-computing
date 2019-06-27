@@ -94,13 +94,8 @@ int main(int argc,char** argv) {
             threadSum+=data[i];
         }
 
-
-        #pragma omp master
-        {
-            for (int i=0;i<maxThreads;i++) {
-                parallelCount+=threadSum;
-            }
-        }
+        #pragma omp atomic
+        parallelCount+=threadSum;
     }
     end = omp_get_wtime();
     printf("Parallel operation using threadSum took %.5f seconds to run. The total is %u Speed up %.1f\n",end-start,parallelCount,serialDuration/(end-start));

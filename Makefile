@@ -16,6 +16,9 @@ cluster_segmentation: cluster_segmentation.c bmp_image_util.h
 	$(CC) $(OMP_FLAG) $(MATH_FLAG) cluster_segmentation.c -o cluster_segmentation.exe
 	echo Successfully built the cluster segmentation application!!!
 
+aggregates:aggregate_operations.c
+	$(CC) $(OMP_FLAG) $(MATH_FLAG) aggregate_operations.c -o aggregate_operations.exe
+
 clean:
-	rm -Force otsu_segmentation.exe canny_edge_detection.exe cluster_segmentation.exe
+	rm -Force otsu_segmentation.exe canny_edge_detection.exe cluster_segmentation.exe aggregate_operations.exe
 	
