@@ -3,8 +3,6 @@
 #include <math.h>
 #include "bmp_image_util.h"
 
-#define NUMBER_OF_CLUSTERS 2
-
 struct Centroid {
     float r;
     float g;
@@ -28,6 +26,9 @@ struct Centroid createCentroid(struct BmpImage bmpImage,int index) {
 }
 
 struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
+    int NUMBER_OF_CLUSTERS;
+    printf("Please enter the number of centroids:");
+    scanf("%d",&NUMBER_OF_CLUSTERS);
     ulong start = omp_get_wtime();
     const uint size = bmpImage.image_height*bmpImage.image_width;
     uchar* clusters_indexes = (uchar*) malloc(size);
@@ -41,16 +42,23 @@ struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
     for (int i=0;i<size;i++)
         clusters_indexes[i] = rand()%NUMBER_OF_CLUSTERS;
 
+    const uchar MAX_ITERATIONS = 50;
+
     int index = 0;
 
-    while (index++<20) {
+    while (index<MAX_ITERATIONS) {
+        if (index%10==0)
+            printf("%.2f complete...\n",100*((float) index)/MAX_ITERATIONS);
+        index++;
         for (int i=0;i<NUMBER_OF_CLUSTERS;i++) {
             struct Centroid newCentroid;
-            newCentroid.r = newCentroid.g = newCentroid.b = 0;
+            newCentroid.r = 0;
+            newCentroid.g = 0;
+            newCentroid.b = 0;
             newCentroid.count = 0;
             aggregates[i] = newCentroid;
         }
-
+        #pragma omp parallel for
         for (int i=0;i<size;i++) {
             uchar group_index = clusters_indexes[i];
             struct Centroid ithPixel = createCentroid(bmpImage,i);
@@ -61,22 +69,25 @@ struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
                 float distance =    pow((pow(ithPixel.r -currentCentroid.r,2)+
                                     pow(ithPixel.g -currentCentroid.g,2)+
                                     pow(ithPixel.b - currentCentroid.b,2)),0.5);
+                
                 if (distance<minEuclidean) {
                     minEuclidean = distance;
                     selectedIndex = j;
                 }
+            }
 
-                if (selectedIndex!=group_index) {
-                    clusters_indexes[i] = selectedIndex;
-                    ithPixel = createCentroid(bmpImage,selectedIndex);
-                }
+             if (selectedIndex!=group_index) {
+                clusters_indexes[i] = selectedIndex;
+                ithPixel = createCentroid(bmpImage,selectedIndex);
+            }
 
-                struct Centroid allocatedCentroid = aggregates[selectedIndex];
+            struct Centroid allocatedCentroid = aggregates[selectedIndex];
+            #pragma omp critical
+            {
                 allocatedCentroid.r+=ithPixel.r;
                 allocatedCentroid.g+=ithPixel.g;
                 allocatedCentroid.b+=ithPixel.b;
                 allocatedCentroid.count++;
-
             }
         }
 
@@ -89,11 +100,17 @@ struct BmpImage performClusterSegmentation(struct BmpImage bmpImage) {
         }
     }
 
+    #pragma omp parallel for
     for (int i=0;i<size;i++) {
          struct Centroid centroid = centroids[clusters_indexes[i]];
          bmpImage.r_channel[i] = (uchar) centroid.r;
          bmpImage.g_channel[i] = (uchar) centroid.g;
          bmpImage.b_channel[i] = (uchar) centroid.b;
+    }
+
+    for (int i=0;i<NUMBER_OF_CLUSTERS;i++) {
+        struct Centroid centroid = centroids[i];
+        printf("%d (%u,%u,%u)\n",i,(uchar) centroid.r,(uchar) centroid.g,(uchar) centroid.b);
     }
    
    free(centroids);
