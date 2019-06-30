@@ -31,6 +31,8 @@ struct Dimensions {
 struct CudaContext {
     uint* sizes;
     uchar* isOutput;
+    uchar* isConstant;
+    uchar* createdByContext;
     struct Dimensions* dimensions;
     void** devicePointers;
     void** hostPointers;
@@ -47,8 +49,12 @@ struct CudaContext {
         twoDimensionalHostPointers = (void***) malloc(sizeof(void**)*MAX_ARRAYS);
         sizes = (uint*) malloc(sizeof(uint)*MAX_ARRAYS);
         isOutput = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
+        isConstant = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
+        createdByContext = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
         dimensions = (struct Dimensions*) malloc(sizeof(struct Dimensions)*MAX_ARRAYS);
         memset(isOutput,0,sizeof(uchar)*MAX_ARRAYS);
+        memset(createdByContext,0,sizeof(uchar)*MAX_ARRAYS);
+        memset(isConstant,0,sizeof(uchar)*MAX_ARRAYS);
         memset(sizes,0,sizeof(uint)*MAX_ARRAYS);
 
         for (int i=0;i<MAX_ARRAYS;i++) {
@@ -58,6 +64,15 @@ struct CudaContext {
             newDimensions.sizeofElement = 0;
             dimensions[i] = newDimensions;
         }
+    }
+
+    void* cudaInConstant(void* hostData, void* deviceData,uint sizeInBytes) {
+        HANDLE_ERROR(cudaMemcpyToSymbol(hostData,deviceData,sizeInBytes));
+        devicePointers[cudaPointerCount] = deviceData;
+        hostPointers[cudaPointerCount] = hostData;
+        isConstant[cudaPointerCount] = 1;
+        sizes[cudaPointerCount] = sizeInBytes;
+        cudaPointerCount++;
     }
 
     void* cudaIn(void* hostData,uint sizeInBytes) {
@@ -97,6 +112,8 @@ struct CudaContext {
 
         twoDimensionalHostPointers[cudaPointerCount] = hostData;
 
+        createdByContext[cudaPointerCount] = 1;
+
         return cudaIn(hostDataFlattened,size);
     }
 
@@ -125,7 +142,10 @@ struct CudaContext {
 
         for (int i=0;i<cudaPointerCount;i++) {
             if (!isOutput[i]) {
-                HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
+                if (!isConstant[i])
+                    HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
+                else
+                    HANDLE_ERROR(cudaMemcpyToSymbol(hostPointers[i],devicePointers[i],sizes[i]));
             }
         }
     }
@@ -148,14 +168,15 @@ struct CudaContext {
     void dispose() {
         for (int i=0;i<cudaPointerCount;i++) {
             cudaFree(devicePointers[i]);
-            struct Dimensions dimension = dimensions[i];
-            if (dimension.height>0) {
+            if (createdByContext[i]) {
                 free(hostPointers[i]);//we added this to memory
             }
         }
 
+        free(createdByContext);
         free(sizes);
         free(isOutput);
+        free(isConstant);
         free(dimensions);
         free(hostPointers);
         free(twoDimensionalHostPointers);
