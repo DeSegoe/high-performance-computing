@@ -36,7 +36,7 @@ int main(int argc,char** argv) {
         int maxThreads = omp_get_num_threads();
         partialArray[idx] = 0;
 
-        #pragma omp block
+        #pragma omp barrier
 
         #pragma omp for
         for (uint i=0;i<DATA_SIZE;i++) {
@@ -63,7 +63,7 @@ int main(int argc,char** argv) {
         int maxThreads = omp_get_num_threads();
         partialMatrix[idx][0] = 0;
 
-        #pragma omp block
+        #pragma omp barrier
 
         #pragma omp for
         for (uint i=0;i<DATA_SIZE;i++) {

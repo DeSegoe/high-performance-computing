@@ -22,6 +22,12 @@ static void HandleError( cudaError_t err,
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 #define MAX_ARRAYS 100
 
+struct Dimensions {
+    int height;
+    int width;
+    int sizeofElement;
+} Dimensions;
+
 struct CudaContext {
     uint* sizes;
     uchar* isOutput;
@@ -32,7 +38,7 @@ struct CudaContext {
     int deviceCount;
 
     void init() {
-        HANDLE_ERROR(cuInit(0));
+        //HANDLE_ERROR(cuInit(0));
         HANDLE_ERROR(cudaGetDeviceCount(&deviceCount));
         devicePointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
         hostPointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
@@ -48,7 +54,7 @@ struct CudaContext {
         devicePointers[cudaPointerCount] = deviceData;
         hostPointers[cudaPointerCount] = hostData;
         sizes[cudaPointerCount] = sizeInBytes;
-        cudaPointer++;
+        cudaPointerCount++;
         return deviceData;
     }
 
@@ -90,7 +96,7 @@ struct CudaContext {
         free(sizes);
         free(isOutput);
         for (int i=0;i<cudaPointerCount;i++) {
-            cudaFree(cudaPointers[i]);
+            cudaFree(devicePointers[i]);
         }
     }
 } CudaContext;
