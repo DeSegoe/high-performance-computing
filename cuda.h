@@ -26,11 +26,12 @@ struct Dimensions {
     int height;
     int width;
     int sizeofElement;
-} Dimensions;
+};
 
 struct CudaContext {
     uint* sizes;
     uchar* isOutput;
+    struct Dimensions* dimensions;
     void** devicePointers;
     void** hostPointers;
     
@@ -44,7 +45,17 @@ struct CudaContext {
         hostPointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
         sizes = (uint*) malloc(sizeof(uint)*MAX_ARRAYS);
         isOutput = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
+        dimensions = (struct Dimensions*) malloc(sizeof(struct Dimensions)*MAX_ARRAYS);
         memset(isOutput,0,sizeof(uchar)*MAX_ARRAYS);
+        memset(sizes,0,sizeof(uint)*MAX_ARRAYS);
+
+        for (int i=0;i<MAX_ARRAYS;i++) {
+            struct Dimensions newDimensions;
+            newDimensions.height = 0;
+            newDimensions.width = 0;
+            newDimensions.sizeofElement = 0;
+            dimensions[i] = newDimensions;
+        }
     }
 
     void* cudaIn(void* hostData,uint sizeInBytes) {
@@ -58,15 +69,45 @@ struct CudaContext {
         return deviceData;
     }
 
-     void* cudaInOut(void* hostData,uint sizeInBytes) {
+    void* cudaInOut(void* hostData,uint sizeInBytes) {
         isOutput[cudaPointerCount] = 1;
         return cudaIn(hostData,sizeInBytes);
+    }
+
+    void* cudaIn(void** hostData,int elementSize,int width,int height) {
+        uint size = width*height*elementSize;
+        uint widthSize = width*elementSize;
+        
+        char** hostDataAsChar = (char**) hostData;
+        void* hostDataFlattened = (void*) malloc(size);
+        char* hostDataFlattenedAsChar = (char*) hostDataFlattened;
+
+        for (int y=0;y<height;y++) {
+            char* rowData = hostDataAsChar[y];
+            memcpy(&hostDataFlattenedAsChar[y*widthSize],rowData,widthSize);
+        }
+
+        struct Dimensions currentDimension = dimensions[cudaPointerCount];
+        currentDimension.height = height;
+        currentDimension.width = width;
+        currentDimension.sizeofElement = elementSize;
+
+        return cudaIn(hostDataFlattened,size);
+    }
+
+    void* cudaInOut(void** hostData,int elementSize,int width,int height) {
+        isOutput[cudaPointerCount] = 1;
+        return cudaIn(hostData,elementSize,width,height);
     }
 
     void synchronize() {
         for (int i=0;i<cudaPointerCount;i++) {
             if (isOutput[i]) {
                 HANDLE_ERROR(cudaMemcpy(hostPointers[i],devicePointers[i],sizes[i],cudaMemcpyDeviceToHost));
+                struct Dimensions currentDimension = dimensions[i];
+                if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.width>0) {
+                    
+                }
             }
         }
 
@@ -95,10 +136,11 @@ struct CudaContext {
     void dispose() {
         free(sizes);
         free(isOutput);
+        free(dimensions);
         for (int i=0;i<cudaPointerCount;i++) {
             cudaFree(devicePointers[i]);
         }
     }
-} CudaContext;
+};
 
 #endif
