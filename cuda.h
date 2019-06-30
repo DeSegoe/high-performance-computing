@@ -2,6 +2,7 @@
 #define CUDA_HELPER
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <cuda_runtime.h>
 
 typedef unsigned int uint;
@@ -23,40 +24,51 @@ static void HandleError( cudaError_t err,
 
 struct CudaContext {
     uint* sizes;
-    void** cudaPointers;
+    uchar* isOutput;
+    void** devicePointers;
     void** hostPointers;
+    
     int cudaPointerCount = 0;
-
     int deviceCount;
 
     void init() {
         HANDLE_ERROR(cuInit(0));
         HANDLE_ERROR(cudaGetDeviceCount(&deviceCount));
-        cudaPointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
+        devicePointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
         hostPointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
         sizes = (uint*) malloc(sizeof(uint)*MAX_ARRAYS);
+        isOutput = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
+        memset(isOutput,0,sizeof(uchar)*MAX_ARRAYS);
     }
 
-    int* cudaInInt(int* hostInput,uint sizeInBytes) {
-        return (int*)  cudaIn((void**) hostInput,sizeInBytes);
-    }
-
-    void** cudaIn(void** hostInput,uint sizeInBytes) {
-        void** deviceInput;
-        HANDLE_ERROR(cudaMalloc(deviceInput,sizeInBytes));
-        HANDLE_ERROR(cudaMemcpy(deviceInput,hostInput,sizeInBytes,cudaMemcpyDeviceToHost));
-        cudaPointers[cudaPointerCount] = deviceInput;
-        hostPointers[cudaPointerCount] = hostInput;
+    void* cudaIn(void* hostData,uint sizeInBytes) {
+        void* deviceData;
+        HANDLE_ERROR(cudaMalloc((void**)&deviceData,sizeInBytes));
+        HANDLE_ERROR(cudaMemcpy(deviceData,hostData,sizeInBytes,cudaMemcpyDeviceToHost));
+        devicePointers[cudaPointerCount] = deviceData;
+        hostPointers[cudaPointerCount] = hostData;
         sizes[cudaPointerCount] = sizeInBytes;
         cudaPointer++;
-        return deviceInput;
+        return deviceData;
     }
 
-     void** cudaInOut(void** hostInput,uint sizeInBytes) {
-        int previousCudaPointer = cudaPointerCount;
-        void** response = cudaIn(hostInput,sizeInBytes);
-        hostPointers[previousCudaPointer] = NULL;
-        return response;
+     void* cudaInOut(void* hostData,uint sizeInBytes) {
+        isOutput[cudaPointerCount] = 1;
+        return cudaIn(hostData,sizeInBytes);
+    }
+
+    void synchronize() {
+        for (int i=0;i<cudaPointerCount;i++) {
+            if (isOutput[i]) {
+                HANDLE_ERROR(cudaMemcpy(hostPointers[i],devicePointers[i],sizes[i],cudaMemcpyDeviceToHost));
+            }
+        }
+
+        for (int i=0;i<cudaPointerCount;i++) {
+            if (!isOutput[i]) {
+                HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
+            }
+        }
     }
 
     void displayProperties() {
@@ -76,6 +88,7 @@ struct CudaContext {
 
     void dispose() {
         free(sizes);
+        free(isOutput);
         for (int i=0;i<cudaPointerCount;i++) {
             cudaFree(cudaPointers[i]);
         }
