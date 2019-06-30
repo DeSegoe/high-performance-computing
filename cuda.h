@@ -34,6 +34,7 @@ struct CudaContext {
     struct Dimensions* dimensions;
     void** devicePointers;
     void** hostPointers;
+    void*** twoDimensionalHostPointers;
     
     int cudaPointerCount = 0;
     int deviceCount;
@@ -41,8 +42,9 @@ struct CudaContext {
     void init() {
         //HANDLE_ERROR(cuInit(0));
         HANDLE_ERROR(cudaGetDeviceCount(&deviceCount));
-        devicePointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
-        hostPointers = (void**) malloc(sizeof(int*)*MAX_ARRAYS);
+        devicePointers = (void**) malloc(sizeof(void*)*MAX_ARRAYS);
+        hostPointers = (void**) malloc(sizeof(void*)*MAX_ARRAYS);
+        twoDimensionalHostPointers = (void***) malloc(sizeof(void**)*MAX_ARRAYS);
         sizes = (uint*) malloc(sizeof(uint)*MAX_ARRAYS);
         isOutput = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
         dimensions = (struct Dimensions*) malloc(sizeof(struct Dimensions)*MAX_ARRAYS);
@@ -91,6 +93,9 @@ struct CudaContext {
         currentDimension.height = height;
         currentDimension.width = width;
         currentDimension.sizeofElement = elementSize;
+        dimensions[cudaPointerCount] = currentDimension;
+
+        twoDimensionalHostPointers[cudaPointerCount] = hostData;
 
         return cudaIn(hostDataFlattened,size);
     }
@@ -105,8 +110,15 @@ struct CudaContext {
             if (isOutput[i]) {
                 HANDLE_ERROR(cudaMemcpy(hostPointers[i],devicePointers[i],sizes[i],cudaMemcpyDeviceToHost));
                 struct Dimensions currentDimension = dimensions[i];
-                if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.width>0) {
-                    
+                if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.sizeofElement>0) {
+                    char** mtx = (char**) twoDimensionalHostPointers[i];
+                    char* hostPointerAsChar = (char*) hostPointers[i];
+                    int rowSize = currentDimension.width*currentDimension.sizeofElement;
+
+                    for (int i=0;i<currentDimension.height;i++) {
+                        char* row = mtx[i];
+                        memcpy(&hostPointerAsChar[i*rowSize],row,rowSize);  
+                    }
                 }
             }
         }
@@ -134,12 +146,20 @@ struct CudaContext {
     }
 
     void dispose() {
+        for (int i=0;i<cudaPointerCount;i++) {
+            cudaFree(devicePointers[i]);
+            struct Dimensions dimension = dimensions[i];
+            if (dimension.height>0) {
+                free(hostPointers[i]);//we added this to memory
+            }
+        }
+
         free(sizes);
         free(isOutput);
         free(dimensions);
-        for (int i=0;i<cudaPointerCount;i++) {
-            cudaFree(devicePointers[i]);
-        }
+        free(hostPointers);
+        free(twoDimensionalHostPointers);
+        free(devicePointers);
     }
 };
 
