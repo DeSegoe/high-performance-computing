@@ -26,6 +26,8 @@ struct Dimensions {
     int height;
     int width;
     int sizeofElement;
+    size_t pitch;
+    texture tex_w;
 };
 
 struct CudaContext {
@@ -62,16 +64,45 @@ struct CudaContext {
             newDimensions.height = 0;
             newDimensions.width = 0;
             newDimensions.sizeofElement = 0;
+            newDimensions.pitch = 0;
+            newDimensions.tex_w = NULL;
             dimensions[i] = newDimensions;
         }
     }
 
-    void* cudaInConstant(void* hostData, void* deviceData,uint sizeInBytes) {
+    void cudaInConstant(void* hostData, void* deviceData,uint sizeInBytes) {
         HANDLE_ERROR(cudaMemcpyToSymbol(hostData,deviceData,sizeInBytes));
         devicePointers[cudaPointerCount] = deviceData;
         hostPointers[cudaPointerCount] = hostData;
         isConstant[cudaPointerCount] = 1;
         sizes[cudaPointerCount] = sizeInBytes;
+        cudaPointerCount++;
+    }
+
+    void cudaInTexture(texture tex_w,void** hostData,int width,int height,int sizeOfElement) {
+        void* tex_arr;
+        size_t pitch;
+        uint widthSize = width*sizeOfElement;
+        HANDLE_ERROR( cudaMallocPitch((void**)&tex_arr, &pitch, widthSize, height) );
+        HANDLE_ERROR( cudaMemcpy2D(tex_arr,             // device destination                                   
+                            pitch,           // device pitch (calculated above)                      
+                            hostData,               // src on host                                          
+                            widthSize, // pitch on src (no padding so just width of row)       
+                            widthSize, // width of data in bytes                               
+                            height,            // height of data                                       
+                            cudaMemcpyHostToDevice) );
+        HANDLE_ERROR( cudaBindTexture2D(NULL, tex_w, tex_arr, tex_w.channelDesc, width, height, pitch) );
+        twoDimensionalHostPointers[cudaPointerCount] = hostData;
+        devicePointers[cudaPointerCount] = tex_arr;
+
+        struct Dimensions currentDimension = dimensions[cudaPointerCount];
+        currentDimension.height = height;
+        currentDimension.width = width;
+        currentDimension.sizeofElement = elementSize;
+        currentDimension.pitch = pitch;
+        currentDimension.tex_w = tex_w;
+        dimensions[cudaPointerCount] = currentDimension;
+
         cudaPointerCount++;
     }
 
@@ -142,8 +173,19 @@ struct CudaContext {
 
         for (int i=0;i<cudaPointerCount;i++) {
             if (!isOutput[i]) {
-                if (!isConstant[i])
-                    HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
+                struct Dimensions currentDimension = dimensions[i];
+                if (!isConstant[i]) {
+                    if (currentDimension.pitch==0)
+                        HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
+                    else
+                         HANDLE_ERROR( cudaMemcpy2D(devicePointers[i],             // device destination                                   
+                            currentDimension.pitch,           // device pitch (calculated above)                      
+                            twoDimensionalHostPointers[i],               // src on host                                          
+                            currentDimension.sizeofElement*currentDimension.width, // pitch on src (no padding so just width of row)       
+                            currentDimension.sizeofElement*currentDimension.width, // width of data in bytes                               
+                            currentDimension.height,            // height of data                                       
+                            cudaMemcpyHostToDevice) );
+                }
                 else
                     HANDLE_ERROR(cudaMemcpyToSymbol(hostPointers[i],devicePointers[i],sizes[i]));
             }
