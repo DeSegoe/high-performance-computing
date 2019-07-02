@@ -109,7 +109,7 @@ struct CudaContext {
     void* cudaIn(void* hostData,uint sizeInBytes) {
         void* deviceData;
         HANDLE_ERROR(cudaMalloc((void**)&deviceData,sizeInBytes));
-        HANDLE_ERROR(cudaMemcpy(deviceData,hostData,sizeInBytes,cudaMemcpyDeviceToHost));
+        HANDLE_ERROR(cudaMemcpy(deviceData,hostData,sizeInBytes,cudaMemcpyHostToDevice));
         devicePointers[cudaPointerCount] = deviceData;
         hostPointers[cudaPointerCount] = hostData;
         sizes[cudaPointerCount] = sizeInBytes;
