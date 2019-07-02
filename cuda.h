@@ -70,13 +70,14 @@ struct CudaContext {
         }
     }
 
-    void cudaInConstant(void* hostData, void* deviceData,uint sizeInBytes) {
-        HANDLE_ERROR(cudaMemcpyToSymbol(hostData,deviceData,sizeInBytes));
-        devicePointers[cudaPointerCount] = deviceData;
-        hostPointers[cudaPointerCount] = hostData;
-        isConstant[cudaPointerCount] = 1;
-        sizes[cudaPointerCount] = sizeInBytes;
-        cudaPointerCount++;
+    void cudaInConstant(void* hostData, void** deviceData,uint sizeInBytes) {
+        HANDLE_ERROR(cudaMemcpyToSymbol(*deviceData,hostData,sizeInBytes));
+       
+        // devicePointers[cudaPointerCount] = *deviceData;
+        // hostPointers[cudaPointerCount] = hostData;
+        // isConstant[cudaPointerCount] = 1;
+        // sizes[cudaPointerCount] = sizeInBytes;
+        // cudaPointerCount++;
     }
 
     void cudaInTexture(texture<void,2,cudaReadModeElementType> tex_w,void** hostData,int width,int height,int sizeOfElement) {
@@ -186,8 +187,8 @@ struct CudaContext {
                             currentDimension.height,            // height of data                                       
                             cudaMemcpyHostToDevice) );
                 }
-                else
-                    HANDLE_ERROR(cudaMemcpyToSymbol(hostPointers[i],devicePointers[i],sizes[i]));
+                // else
+                //     HANDLE_ERROR(cudaMemcpyToSymbol(devicePointers[i],hostPointers[i],sizes[i]));
             }
         }
     }

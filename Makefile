@@ -21,8 +21,8 @@ cluster_segmentation: cluster_segmentation.c bmp_image_util.h
 aggregates:aggregate_operations.c
 	$(CC) $(OMP_FLAG) $(MATH_FLAG) aggregate_operations.c -o aggregate_operations.exe
 
-cuda_aggregates:aggregate_operations.cu cuda.h
-	$(NVCC) $(CUDA_OMP_FLAG) .\aggregate_operations.cu -o .\cuda_aggregate_operations.exe
+cuda_dev:test_cuda_context.cu cuda.h
+	$(NVCC) $(CUDA_OMP_FLAG) .\test_cuda_context.cu -o test_cuda_context.exe
 
 clean:
 	rm -Force otsu_segmentation.exe canny_edge_detection.exe cluster_segmentation.exe aggregate_operations.exe cuda_aggregate_operations.exe
