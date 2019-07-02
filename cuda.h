@@ -27,7 +27,7 @@ struct Dimensions {
     int width;
     int sizeofElement;
     size_t pitch;
-    texture tex_w;
+    texture<void,2,cudaReadModeElementType> tex_w;
 };
 
 struct CudaContext {
@@ -79,7 +79,7 @@ struct CudaContext {
         cudaPointerCount++;
     }
 
-    void cudaInTexture(texture tex_w,void** hostData,int width,int height,int sizeOfElement) {
+    void cudaInTexture(texture<void,2,cudaReadModeElementType> tex_w,void** hostData,int width,int height,int sizeOfElement) {
         void* tex_arr;
         size_t pitch;
         uint widthSize = width*sizeOfElement;
@@ -98,7 +98,7 @@ struct CudaContext {
         struct Dimensions currentDimension = dimensions[cudaPointerCount];
         currentDimension.height = height;
         currentDimension.width = width;
-        currentDimension.sizeofElement = elementSize;
+        currentDimension.sizeofElement = sizeOfElement;
         currentDimension.pitch = pitch;
         currentDimension.tex_w = tex_w;
         dimensions[cudaPointerCount] = currentDimension;
@@ -212,6 +212,11 @@ struct CudaContext {
             cudaFree(devicePointers[i]);
             if (createdByContext[i]) {
                 free(hostPointers[i]);//we added this to memory
+            }
+
+            struct Dimensions currentDimension = dimensions[i];
+            if (currentDimension.pitch>0) {
+                 cudaUnbindTexture(currentDimension.tex_w);
             }
         }
 
