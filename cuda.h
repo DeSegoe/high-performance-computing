@@ -33,7 +33,6 @@ struct Dimensions {
 struct CudaContext {
     uint* sizes;
     uchar* isOutput;
-    uchar* isConstant;
     uchar* createdByContext;
     struct Dimensions* dimensions;
     void** devicePointers;
@@ -51,12 +50,10 @@ struct CudaContext {
         twoDimensionalHostPointers = (void***) malloc(sizeof(void**)*MAX_ARRAYS);
         sizes = (uint*) malloc(sizeof(uint)*MAX_ARRAYS);
         isOutput = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
-        isConstant = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
         createdByContext = (uchar*) malloc(sizeof(uchar)*MAX_ARRAYS);
         dimensions = (struct Dimensions*) malloc(sizeof(struct Dimensions)*MAX_ARRAYS);
         memset(isOutput,0,sizeof(uchar)*MAX_ARRAYS);
         memset(createdByContext,0,sizeof(uchar)*MAX_ARRAYS);
-        memset(isConstant,0,sizeof(uchar)*MAX_ARRAYS);
         memset(sizes,0,sizeof(uint)*MAX_ARRAYS);
 
         for (int i=0;i<MAX_ARRAYS;i++) {
@@ -72,12 +69,6 @@ struct CudaContext {
 
     void cudaInConstant(void* hostData, void** deviceData,uint sizeInBytes) {
         HANDLE_ERROR(cudaMemcpyToSymbol(*deviceData,hostData,sizeInBytes));
-       
-        // devicePointers[cudaPointerCount] = *deviceData;
-        // hostPointers[cudaPointerCount] = hostData;
-        // isConstant[cudaPointerCount] = 1;
-        // sizes[cudaPointerCount] = sizeInBytes;
-        // cudaPointerCount++;
     }
 
     void cudaInTexture(texture<void,2,cudaReadModeElementType> tex_w,void** hostData,int width,int height,int sizeOfElement) {
@@ -175,20 +166,17 @@ struct CudaContext {
         for (int i=0;i<cudaPointerCount;i++) {
             if (!isOutput[i]) {
                 struct Dimensions currentDimension = dimensions[i];
-                if (!isConstant[i]) {
-                    if (currentDimension.pitch==0)
-                        HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
-                    else
-                         HANDLE_ERROR( cudaMemcpy2D(devicePointers[i],             // device destination                                   
-                            currentDimension.pitch,           // device pitch (calculated above)                      
-                            twoDimensionalHostPointers[i],               // src on host                                          
-                            currentDimension.sizeofElement*currentDimension.width, // pitch on src (no padding so just width of row)       
-                            currentDimension.sizeofElement*currentDimension.width, // width of data in bytes                               
-                            currentDimension.height,            // height of data                                       
-                            cudaMemcpyHostToDevice) );
-                }
-                // else
-                //     HANDLE_ERROR(cudaMemcpyToSymbol(devicePointers[i],hostPointers[i],sizes[i]));
+                if (currentDimension.pitch==0)
+                    HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
+                else
+                        HANDLE_ERROR( cudaMemcpy2D(devicePointers[i],             // device destination                                   
+                        currentDimension.pitch,           // device pitch (calculated above)                      
+                        twoDimensionalHostPointers[i],               // src on host                                          
+                        currentDimension.sizeofElement*currentDimension.width, // pitch on src (no padding so just width of row)       
+                        currentDimension.sizeofElement*currentDimension.width, // width of data in bytes                               
+                        currentDimension.height,            // height of data                                       
+                        cudaMemcpyHostToDevice) );
+                
             }
         }
     }
@@ -224,7 +212,6 @@ struct CudaContext {
         free(createdByContext);
         free(sizes);
         free(isOutput);
-        free(isConstant);
         free(dimensions);
         free(hostPointers);
         free(twoDimensionalHostPointers);

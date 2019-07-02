@@ -21,6 +21,10 @@ __global__ void test(int* input,int* output) {
     output[index] = input[index]*2;
 }
 
+__global__ void countIterations(int* counter) {
+    atomicAdd(counter,1);
+}
+
 int main(int argc,char** argv) {
     srand(2019);
     int* input = (int*) malloc(sizeof(int)*DATA_SIZE);
@@ -36,8 +40,6 @@ int main(int argc,char** argv) {
     struct CudaContext context;
     context.init();
     context.displayProperties();
-
-    //cudaMemcpyToSymbol(constants,(void*) input_constant,sizeof(int)*DATA_SIZE,cudaMemcpyHostToDevice);
     context.cudaInConstant((void*) input_constant, (void**) &constants,sizeof(int)*DATA_SIZE);
     displayConstant<<<1,8>>>();
     test<<<1,8>>>(
@@ -45,11 +47,14 @@ int main(int argc,char** argv) {
         (int*) context.cudaInOut((void*) output,sizeof(uint)*DATA_SIZE));
     context.synchronize();
 
-    context.dispose();
-
     for (int i=0;i<DATA_SIZE;i++)
         printf("%d\n",output[i]);
 
+    int sum = 0;
+    countIterations<<<1,10>>>( (int*) context.cudaInOut((void*) &sum,sizeof(int)));
+    context.synchronize();
+    printf("Sum = %d\n",sum);
+    context.dispose();
     free(input);
     free(input_constant);
     free(output);
