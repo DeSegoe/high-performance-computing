@@ -86,7 +86,7 @@ struct CudaContext {
                             height,            // height of data                                       
                             cudaMemcpyHostToDevice) );
                
-        tex_w->normalized = true;  // don't use normalized values                                           
+        tex_w->normalized = false;  // don't use normalized values                                           
         tex_w->filterMode = cudaFilterModeLinear;
         tex_w->addressMode[0] = cudaAddressModeClamp; // don't wrap around indices                           
         tex_w->addressMode[1] = cudaAddressModeClamp;
