@@ -22,12 +22,16 @@ static void HandleError( cudaError_t err,
 #define HANDLE_ERROR( err ) (HandleError( err, __FILE__, __LINE__ ))
 #define MAX_ARRAYS 100
 
+
 struct Dimensions {
     int height;
     int width;
     int sizeofElement;
+};
+
+struct TextureWrapper {
     size_t pitch;
-    texture<void,2,cudaReadModeElementType> tex_w;
+    void** devicePointer;
 };
 
 struct CudaContext {
@@ -61,8 +65,6 @@ struct CudaContext {
             newDimensions.height = 0;
             newDimensions.width = 0;
             newDimensions.sizeofElement = 0;
-            newDimensions.pitch = 0;
-            newDimensions.tex_w = NULL;
             dimensions[i] = newDimensions;
         }
     }
@@ -71,7 +73,7 @@ struct CudaContext {
         HANDLE_ERROR(cudaMemcpyToSymbol(*deviceData,hostData,sizeInBytes));
     }
 
-    void cudaInTexture(texture<void,2,cudaReadModeElementType> tex_w,void** hostData,int width,int height,int sizeOfElement) {
+    struct TextureWrapper cudaInTexture(texture<float,2,cudaReadModeElementType> *tex_w,void** hostData,int width,int height,int sizeOfElement) {
         void* tex_arr;
         size_t pitch;
         uint widthSize = width*sizeOfElement;
@@ -83,19 +85,22 @@ struct CudaContext {
                             widthSize, // width of data in bytes                               
                             height,            // height of data                                       
                             cudaMemcpyHostToDevice) );
-        HANDLE_ERROR( cudaBindTexture2D(NULL, tex_w, tex_arr, tex_w.channelDesc, width, height, pitch) );
-        twoDimensionalHostPointers[cudaPointerCount] = hostData;
+               
+        tex_w->normalized = true;  // don't use normalized values                                           
+        tex_w->filterMode = cudaFilterModeLinear;
+        tex_w->addressMode[0] = cudaAddressModeClamp; // don't wrap around indices                           
+        tex_w->addressMode[1] = cudaAddressModeClamp;
+        //  HANDLE_ERROR( cudaBindTexture2D(NULL,  tex_w, *wrapper.devicePointer,  tex_w.channelDesc, 2, 2, wrapper.pitch) );  use this in calling 
+        // HANDLE_ERROR(cudaUnbindTexture(tex_w));
+        struct TextureWrapper wrapper;
+        wrapper.pitch = pitch;
+        wrapper.devicePointer = &tex_arr;
+
         devicePointers[cudaPointerCount] = tex_arr;
-
-        struct Dimensions currentDimension = dimensions[cudaPointerCount];
-        currentDimension.height = height;
-        currentDimension.width = width;
-        currentDimension.sizeofElement = sizeOfElement;
-        currentDimension.pitch = pitch;
-        currentDimension.tex_w = tex_w;
-        dimensions[cudaPointerCount] = currentDimension;
-
+        hostPointers[cudaPointerCount] = (void*) malloc(1);
+        createdByContext[cudaPointerCount] = 1;
         cudaPointerCount++;
+        return wrapper;
     }
 
     void* cudaIn(void* hostData,uint sizeInBytes) {
@@ -164,19 +169,8 @@ struct CudaContext {
         }
 
         for (int i=0;i<cudaPointerCount;i++) {
-            if (!isOutput[i]) {
-                struct Dimensions currentDimension = dimensions[i];
-                if (currentDimension.pitch==0)
-                    HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice));
-                else
-                        HANDLE_ERROR( cudaMemcpy2D(devicePointers[i],             // device destination                                   
-                        currentDimension.pitch,           // device pitch (calculated above)                      
-                        twoDimensionalHostPointers[i],               // src on host                                          
-                        currentDimension.sizeofElement*currentDimension.width, // pitch on src (no padding so just width of row)       
-                        currentDimension.sizeofElement*currentDimension.width, // width of data in bytes                               
-                        currentDimension.height,            // height of data                                       
-                        cudaMemcpyHostToDevice) );
-                
+            if (!isOutput[i] && !createdByContext[i]) {
+                HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice)); 
             }
         }
     }
@@ -201,11 +195,6 @@ struct CudaContext {
             cudaFree(devicePointers[i]);
             if (createdByContext[i]) {
                 free(hostPointers[i]);//we added this to memory
-            }
-
-            struct Dimensions currentDimension = dimensions[i];
-            if (currentDimension.pitch>0) {
-                 cudaUnbindTexture(currentDimension.tex_w);
             }
         }
 

@@ -11,6 +11,8 @@ typedef unsigned long ulong;
 
 __device__ __constant__ int constants[20];
 
+texture<float,2,cudaReadModeElementType> tex_w;
+
 __global__ void displayConstant() {
     int index = threadIdx.x+blockIdx.x*blockDim.x +threadIdx.y+blockIdx.y*blockDim.y;
     printf("constant: %d\n",constants[index]);
@@ -28,6 +30,12 @@ __global__ void countIterations(int* counter) {
 __global__ void updateGlobalArray(float* global) {
     int index = threadIdx.x+blockIdx.x*blockDim.x +threadIdx.y+blockIdx.y*blockDim.y;
     global[index]*=2;
+}
+
+__global__ void displayTexture() {
+    int x = threadIdx.x+blockIdx.x*blockDim.x ;
+    int y = threadIdx.y+blockIdx.y*blockDim.y;
+    printf("texture: %.2f\n",tex2D(tex_w,x,y));
 }
 
 void** generateMatrix(int elementSize,int width,int height) {
@@ -104,8 +112,15 @@ int main(int argc,char** argv) {
     context.synchronize();
     printf("After updating\n");
     displayFloatMatrix(2,2,mtrx);
-    context.dispose();
 
+    printf("Bind texture\n");
+    struct TextureWrapper wrapper = context.cudaInTexture(&tex_w,(void**) mtrx,2,2,sizeof(float));
+    HANDLE_ERROR( cudaBindTexture2D(NULL,  tex_w, *wrapper.devicePointer,  tex_w.channelDesc, 2, 2, wrapper.pitch) );
+    printf("Reached here:\n");
+    dim3 threadDim(2,2);
+    displayTexture<<<1,threadDim>>>();
+    HANDLE_ERROR(cudaUnbindTexture(tex_w));
+    context.dispose();
     free(input);
     free(input_constant);
     free(output);
