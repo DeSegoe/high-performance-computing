@@ -153,11 +153,11 @@ struct CudaContext {
                 if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.sizeofElement>0) {
                     char** mtx = (char**) twoDimensionalHostPointers[i];
                     char* hostPointerAsChar = (char*) hostPointers[i];
-                    int rowSize = currentDimension.width*currentDimension.sizeofElement;
+                    uint rowSize = currentDimension.width*currentDimension.sizeofElement;
 
                     for (int i=0;i<currentDimension.height;i++) {
                         char* row = mtx[i];
-                        memcpy(&hostPointerAsChar[i*rowSize],row,rowSize);  
+                        memcpy(row,&hostPointerAsChar[i*rowSize],rowSize);  
                     }
                 }
             }
