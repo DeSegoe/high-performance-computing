@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <cuda_runtime.h>
 
 typedef unsigned int uint;
@@ -67,6 +68,24 @@ struct CudaContext {
             newDimensions.sizeofElement = 0;
             dimensions[i] = newDimensions;
         }
+    }
+
+    int getBlocks(uint N) {
+        return ceil((N+1024)/1024);
+    }
+
+    dim3 getBlocks(int rows,int columns) {
+        dim3 blocks(ceil((rows+32)/32),ceil((columns+32)/32));
+        return blocks;
+    }
+
+    int getThreads(uint N) {
+        return 1024;
+    }
+
+    dim3 getThreads(int rows,int columns) {
+        dim3 threads(32,32);
+        return threads;
     }
 
     void cudaInConstant(void* hostData, void** deviceData,uint sizeInBytes) {
