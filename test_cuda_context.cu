@@ -35,7 +35,7 @@ __global__ void updateGlobalArray(float* global) {
 __global__ void displayTexture() {
     int x = threadIdx.x+blockIdx.x*blockDim.x ;
     int y = threadIdx.y+blockIdx.y*blockDim.y;
-    printf("texture: %.2f\n",tex2D(tex_w,x,y));
+    printf("texture: %.2f\n",tex2D(tex_w,x+0.5f ,y+0.5f));
 }
 
 void** generateMatrix(int elementSize,int width,int height) {
@@ -114,17 +114,32 @@ int main(int argc,char** argv) {
     displayFloatMatrix(2,2,mtrx);
 
     printf("Bind texture\n");
-    struct TextureWrapper wrapper = context.cudaInTexture(&tex_w,(void**) mtrx,2,2,sizeof(float));
-    HANDLE_ERROR( cudaBindTexture2D(NULL,  tex_w, *wrapper.devicePointer,  tex_w.channelDesc, 2, 2, wrapper.pitch) );
-    printf("Reached here:\n");
-    dim3 threadDim(2,2);
+    int imax = 8;
+    float (*w)[3];
+
+    //float (*d_w)[3];
+
+    w = (float (*)[3])malloc(imax*3*sizeof(float));
+
+    for(int i=0; i<imax; i++)
+    {
+    for(int j=0; j<3; j++)
+        {
+        w[i][j] = 25*i + 12.01f*j;
+        }
+    }
+
+    struct TextureWrapper wrapper = context.cudaInTexture(&tex_w,(void**) w,3,imax,sizeof(float));
+    HANDLE_ERROR( cudaBindTexture2D(NULL,  tex_w, *wrapper.devicePointer,  tex_w.channelDesc, 3, imax, wrapper.pitch) );                                       
+    dim3 threadDim(3,8);
     displayTexture<<<1,threadDim>>>();
     HANDLE_ERROR(cudaUnbindTexture(tex_w));
     context.dispose();
     free(input);
     free(input_constant);
     free(output);
-    freeMatrix(3,(void**)mtrx);
+    //freeMatrix(8,(void**)w);
+    freeMatrix(2,(void**)mtrx);
 
     printf("Finished...");
 
