@@ -171,28 +171,36 @@ struct CudaContext {
     }
 
     void synchronize() {
+        synchronize(NULL);
+    }
+
+    void synchronize(void* ptr) {
         cudaDeviceSynchronize();
         for (int i=0;i<cudaPointerCount;i++) {
-            if (isOutput[i]) {
-                //printf("%d: device pointer:%p host pointer:%p size:%u\n",i,devicePointers[i],hostPointers[i],sizes[i]);
-                HANDLE_ERROR(cudaMemcpy(hostPointers[i],devicePointers[i],sizes[i],cudaMemcpyDeviceToHost));
-                struct Dimensions currentDimension = dimensions[i];
-                if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.sizeofElement>0) {
-                    char** mtx = (char**) twoDimensionalHostPointers[i];
-                    char* hostPointerAsChar = (char*) hostPointers[i];
-                    uint rowSize = currentDimension.width*currentDimension.sizeofElement;
+            if (ptr==NULL || ptr==hostPointers[i]) {
+                if (isOutput[i]) {
+                    //printf("%d: device pointer:%p host pointer:%p size:%u\n",i,devicePointers[i],hostPointers[i],sizes[i]);
+                    HANDLE_ERROR(cudaMemcpy(hostPointers[i],devicePointers[i],sizes[i],cudaMemcpyDeviceToHost));
+                    struct Dimensions currentDimension = dimensions[i];
+                    if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.sizeofElement>0) {
+                        char** mtx = (char**) twoDimensionalHostPointers[i];
+                        char* hostPointerAsChar = (char*) hostPointers[i];
+                        uint rowSize = currentDimension.width*currentDimension.sizeofElement;
 
-                    for (int i=0;i<currentDimension.height;i++) {
-                        char* row = mtx[i];
-                        memcpy(row,&hostPointerAsChar[i*rowSize],rowSize);  
+                        for (int i=0;i<currentDimension.height;i++) {
+                            char* row = mtx[i];
+                            memcpy(row,&hostPointerAsChar[i*rowSize],rowSize);  
+                        }
                     }
                 }
-            }
+            } 
         }
 
         for (int i=0;i<cudaPointerCount;i++) {
-            if (!isOutput[i] && !createdByContext[i]) {
-                HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice)); 
+            if (ptr==NULL || ptr==hostPointers[i]) {
+                if (!isOutput[i] && !createdByContext[i]) {
+                    HANDLE_ERROR(cudaMemcpy(devicePointers[i],hostPointers[i],sizes[i],cudaMemcpyHostToDevice)); 
+                }
             }
         }
     }
