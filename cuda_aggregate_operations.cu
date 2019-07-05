@@ -9,10 +9,10 @@ typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-__global__ void aggregator(uchar* globalData,ulong *sum,uint N) {
+__global__ void aggregator(uchar* globalData,ulong *sum) {
     uint x = threadIdx.x + blockIdx.x*blockDim.x;
 
-    if (x<N && threadIdx.x<N) {
+    if (x<DATA_SIZE) {
         __shared__ uint sharedData[1024];
         
         sharedData[threadIdx.x] = globalData[x];
@@ -23,15 +23,13 @@ __global__ void aggregator(uchar* globalData,ulong *sum,uint N) {
 
         for (int s=1;s<halfBlock;s++) {
             int index = 2*s*threadIdx.x;
-            if (index<blockDim.x)
+            if (index+s<blockDim.x)
                 sharedData[index]+= sharedData[index+s];
 
             __syncthreads();
         }
 
         if (threadIdx.x==0) {
-            int number = 0;
-            atomicAdd(&number,1);
             sum[0]+= sharedData[0];
         }
     }
@@ -61,10 +59,10 @@ int main(int argc,char** argv) {
     const int numberOfBlocks = cudaContext.getBlocks(DATA_SIZE);
     aggregator<<<numberOfBlocks,numberOfThreads>>>(
        (uchar*) cudaContext.cudaIn((void*) data,DATA_SIZE),
-       (ulong*) cudaContext.cudaInOut((void*) &parallelCount,sizeof(ulong)),
-       DATA_SIZE);
-    //cudaContext.synchronize();
+       (ulong*) cudaContext.cudaInOut((void*) &parallelCount,sizeof(ulong)));
     end = omp_get_wtime();
+    cudaContext.synchronize();
+   
     printf("Parallel operation took %.5f seconds to run. The total is %u, Speed up -\n",end-start,parallelCount);
     
     cudaContext.dispose();
