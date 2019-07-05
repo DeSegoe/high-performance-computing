@@ -6,7 +6,7 @@ MATH_FLAG=-lm
 
 all: otsu_segmentation canny_detection cluster_segmentation
 
-cuda: cuda_dev
+cuda: cuda_dev cuda_aggregate
 
 otsu_segmentation: otsu_segmentation.c bmp_image_util.h
 	$(CC) $(OMP_FLAG) $(MATH_FLAG) otsu_segmentation.c -o otsu_segmentation.exe
@@ -25,6 +25,9 @@ aggregates:aggregate_operations.c
 
 cuda_dev:test_cuda_context.cu cuda.h
 	$(NVCC) $(CUDA_OMP_FLAG) .\test_cuda_context.cu -o test_cuda_context.exe
+
+cuda_aggregate: cuda_aggregate_operations.cu cuda.h
+	$(NVCC) $(CUDA_OMP_FLAG) .\cuda_aggregate_operations.cu -o cuda_aggregate_operations.exe
 
 clean:
 	rm -Force *.exe *.exp *.lib

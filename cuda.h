@@ -128,6 +128,7 @@ struct CudaContext {
         HANDLE_ERROR(cudaMemcpy(deviceData,hostData,sizeInBytes,cudaMemcpyHostToDevice));
         devicePointers[cudaPointerCount] = deviceData;
         hostPointers[cudaPointerCount] = hostData;
+        //printf("device pointer:%p host pointer:%p size:%u\n",deviceData,hostData,sizeInBytes);
         sizes[cudaPointerCount] = sizeInBytes;
         cudaPointerCount++;
         return deviceData;
@@ -170,8 +171,10 @@ struct CudaContext {
     }
 
     void synchronize() {
+        cudaDeviceSynchronize();
         for (int i=0;i<cudaPointerCount;i++) {
             if (isOutput[i]) {
+                //printf("%d: device pointer:%p host pointer:%p size:%u\n",i,devicePointers[i],hostPointers[i],sizes[i]);
                 HANDLE_ERROR(cudaMemcpy(hostPointers[i],devicePointers[i],sizes[i],cudaMemcpyDeviceToHost));
                 struct Dimensions currentDimension = dimensions[i];
                 if (currentDimension.width>0 && currentDimension.height>0 && currentDimension.sizeofElement>0) {
