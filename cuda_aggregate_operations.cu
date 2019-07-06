@@ -9,25 +9,38 @@ typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-__global__ void aggregator(uchar* globalData,uint* sum) {
-    uint x = threadIdx.x + blockIdx.x*blockDim.x;
+__device__ void warpReduce(volatile uint* sharedData, int tid) {
+    sharedData[tid]+=sharedData[tid+32];
+    sharedData[tid]+=sharedData[tid+16];
+    sharedData[tid]+=sharedData[tid+8];
+    sharedData[tid]+=sharedData[tid+4];
+    sharedData[tid]+=sharedData[tid+2];
+    sharedData[tid]+=sharedData[tid+1];
+}
+
+__global__ void aggregator(uchar* globalData,ulong* sum) {
+    uint x = threadIdx.x + blockIdx.x*2*blockDim.x;
+
+    uint tid = threadIdx.x;
 
     if (x<DATA_SIZE) {
         __shared__ uint sharedData[1024];
         
-        sharedData[threadIdx.x] = globalData[x];
+        sharedData[tid] = globalData[x]+globalData[x+blockDim.x];
 
         __syncthreads();
 
-        int halfBlock = blockDim.x/2;
+        uint halfBlock = blockDim.x/2;
 
-        for (int s=1;s<halfBlock;s++) {
-            int index = 2*s*threadIdx.x;
-            if (index+s<blockDim.x)
-                sharedData[index]+= sharedData[index+s];
+        for (uint s=halfBlock;s>32;s>>=1) {
+            if (tid<s)
+                sharedData[tid]+= sharedData[tid+s];
 
             __syncthreads();
         }
+
+        if (tid<32)
+            warpReduce(sharedData,tid);
 
         if (threadIdx.x==0) {
             sum[blockIdx.x]+= sharedData[0];
@@ -52,23 +65,25 @@ int main(int argc,char** argv) {
     printf("Serial operation took %.5f seconds to run. The total is %u, Speed up -\n",end-start,serialCount);
 
     ulong parallelCount = 0; 
+    start = omp_get_wtime();
     struct CudaContext cudaContext;
     cudaContext.init();
     const int numberOfThreads = 1024;
     const int numberOfBlocks = cudaContext.getBlocks(DATA_SIZE);
-    uint* sums = (uint*) malloc(sizeof(uint)*numberOfBlocks);
+    ulong* sums = (ulong*) malloc(sizeof(ulong)*numberOfBlocks);
     for (uint i=0;i<numberOfBlocks;i++)
         sums[i]=0;
-    start = omp_get_wtime();
-    aggregator<<<numberOfBlocks,numberOfThreads>>>(
+   
+    aggregator<<<numberOfBlocks/2,numberOfThreads>>>(
        (uchar*) cudaContext.cudaIn((void*) data,DATA_SIZE),
-       (uint*) cudaContext.cudaInOut((void*) sums,sizeof(uint)*numberOfBlocks));
-    end = omp_get_wtime();
+       (ulong*) cudaContext.cudaInOut((void*) sums,sizeof(ulong)*numberOfBlocks));
+    
     cudaContext.synchronize((void*)sums);
 
     for (int i=0;i<numberOfBlocks;i++) {
         parallelCount+=sums[i];
     }
+    end = omp_get_wtime();
    
     printf("Parallel operation took %.5f seconds to run. The total is %u, Speed up -\n",end-start,parallelCount);
     
