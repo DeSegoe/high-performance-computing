@@ -1,115 +1,80 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <omp.h>
-
-#define DATA_SIZE 1 << 28
+#include <string.h>
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
+void validate(ulong arr1[256],ulong arr2[256]) {
+    uchar incorrectCount = 0;
+    for (int i=0;i<256;i++) {
+        if (arr1[i]!=arr2[i])
+            incorrectCount++;
+    }
+
+    if (incorrectCount==0)
+        printf("Passed validation\n");
+    else
+        printf("%u bins were incorrect\n",incorrectCount);
+}
+
 int main(int argc,char** argv) {
+    ulong DATA_SIZE  = 1 << 28;
     srand(2019);
     uchar* data = (uchar*) malloc(DATA_SIZE);
     
-    for (int i=0;i<DATA_SIZE;i++) {
+    for (uint i=0;i<DATA_SIZE;i++) {
         data[i] = rand()%256;
     }
 
-    ulong parallelCount = 0;
-    ulong serialCount = 0;
     double serialDuration = -1;
     double start = omp_get_wtime();
+    ulong serialHistogram[256];
+    memset(serialHistogram,0,sizeof(ulong)*256);
     for (uint i=0;i<DATA_SIZE;i++ ) {
-        serialCount+=data[i];
+        serialHistogram[data[i]]++;
     }
     double end = omp_get_wtime();
     serialDuration = end - start;
-    printf("Serial operation took %.5f seconds to run. The total is %u, Speed up -\n",end-start,serialCount);
+    printf("Serial operation took %.5f seconds to run.Speed up -\n",serialDuration);
 
-    parallelCount = 0;
+    double parallelDuration = -1;
     start = omp_get_wtime();
-    ulong partialArray[32];
+    ulong parallelHistogram[256];
+    memset(parallelHistogram,0,sizeof(ulong)*256);
+
     #pragma omp parallel
     {
-        int idx = omp_get_thread_num();
-        int maxThreads = omp_get_num_threads();
-        partialArray[idx] = 0;
+        ulong partialHistogram[256];
+        memset(partialHistogram,0,sizeof(ulong)*256);
+        int numThreads = omp_get_num_threads();
+        int tid = omp_get_thread_num();
+        ulong blockSize = DATA_SIZE/numThreads;
+        ulong startIndex = blockSize*tid;
+        ulong endIndex = startIndex+blockSize;
 
-        #pragma omp block
-
-        #pragma omp for
-        for (uint i=0;i<DATA_SIZE;i++) {
-            partialArray[omp_get_thread_num()]+=data[i];
+        if (tid == numThreads-1)
+            endIndex+= DATA_SIZE%numThreads;
+        
+        for (ulong i=startIndex;i<endIndex;i++) {
+            partialHistogram[data[i]]++;
         }
 
-
-        #pragma omp master
-        {
-            for (int i=0;i<maxThreads;i++) {
-                parallelCount+=partialArray[i];
+        for (int i=0;i<256;i++) {
+            #pragma omp critical
+            {
+                parallelHistogram[i]+=partialHistogram[i];
             }
         }
     }
+
     end = omp_get_wtime();
-    printf("Parallel operation using partialSum[32] took %.5f seconds to run. The total is %u Speed up %.1f\n",end-start,parallelCount,serialDuration/(end-start));
+    parallelDuration = end-start;
+    printf("Parallel operation took %.5f seconds to run. Speed up %.1f\n",parallelDuration,serialDuration/parallelDuration);
 
-    parallelCount = 0;
-    start = omp_get_wtime();
-    ulong partialMatrix[32][1];
-    #pragma omp parallel
-    {
-        int idx = omp_get_thread_num();
-        int maxThreads = omp_get_num_threads();
-        partialMatrix[idx][0] = 0;
-
-        #pragma omp block
-
-        #pragma omp for
-        for (uint i=0;i<DATA_SIZE;i++) {
-            partialMatrix[omp_get_thread_num()][0]+=data[i];
-        }
-
-
-        #pragma omp master
-        {
-            for (int i=0;i<maxThreads;i++) {
-                parallelCount+=partialMatrix[i][0];
-            }
-        }
-    }
-    end = omp_get_wtime();
-    printf("Parallel operation using partialSum[32][1] took %.5f seconds to run. The total is %u Speed up %.1f\n",end-start,parallelCount,serialDuration/(end-start));
-
-    parallelCount = 0;
-    start = omp_get_wtime();
-    #pragma omp parallel
-    {
-        int maxThreads = omp_get_num_threads();
-
-        ulong threadSum = 0;
-
-        #pragma omp for
-        for (uint i=0;i<DATA_SIZE;i++) {
-            threadSum+=data[i];
-        }
-
-        #pragma omp atomic
-        parallelCount+=threadSum;
-    }
-    end = omp_get_wtime();
-    printf("Parallel operation using threadSum took %.5f seconds to run. The total is %u Speed up %.1f\n",end-start,parallelCount,serialDuration/(end-start));
-
-    parallelCount = 0;
-    start = omp_get_wtime();
-    parallelCount=0;
-    #pragma omp parallel for reduction(+:parallelCount)
-    for (uint i=0;i<DATA_SIZE;i++) {
-        parallelCount+=data[i];
-    }
-    end = omp_get_wtime();
-    printf("Parallel operation using reduction took %.5f seconds to run. The total is %u Speed up %.1f\n",end-start,parallelCount,serialDuration/(end-start));
-
+    validate(serialHistogram,parallelHistogram);
     free(data);
 
     return 0;

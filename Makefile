@@ -4,7 +4,7 @@ OMP_FLAG=-fopenmp
 CUDA_OMP_FLAG=-Xcompiler="-openmp"
 MATH_FLAG=-lm
 
-all: otsu_segmentation canny_detection cluster_segmentation
+all: otsu_segmentation canny_detection cluster_segmentation histogram
 
 cuda: cuda_dev cuda_aggregate
 
@@ -22,6 +22,9 @@ cluster_segmentation: cluster_segmentation.c bmp_image_util.h
 
 aggregates:aggregate_operations.c
 	$(CC) $(OMP_FLAG) $(MATH_FLAG) aggregate_operations.c -o aggregate_operations.exe
+
+histogram:histogram_operations.c
+	$(CC) $(OMP_FLAG) $(MATH_FLAG) histogram_operations.c -o histogram_operations.exe
 
 cuda_dev:test_cuda_context.cu cuda.h
 	$(NVCC) $(CUDA_OMP_FLAG) .\test_cuda_context.cu -o test_cuda_context.exe
