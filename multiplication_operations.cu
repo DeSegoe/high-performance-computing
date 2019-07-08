@@ -4,44 +4,20 @@
 #include <omp.h>
 #include "cuda.h"
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
 
 __global__ void multiplyVectors(float* A, float* B, float*C,int WIDTH,int HEIGHT) {
     int x = threadIdx.x + blockIdx.x*blockDim.x;
     int y = threadIdx.y + blockIdx.y*blockDim.y;
     
     if (x<WIDTH && y<HEIGHT) {
-        __shared__ float total[BLOCK_SIZE][BLOCK_SIZE];
-        __shared__ float buffer_A[BLOCK_SIZE][BLOCK_SIZE];
-        __shared__ float buffer_B[BLOCK_SIZE][BLOCK_SIZE];
 
-        total[threadIdx.y][threadIdx.x] = 0.0;
-        __syncthreads();
+        double result = 0.0;
 
-        int ix = threadIdx.x;
-        int iy = threadIdx.y;
+        for (int i=0;i<WIDTH;i++)
+            result+=A[y*WIDTH+i]*B[i*WIDTH+x];
 
-        while (iy<HEIGHT) {
-            buffer_A[threadIdx.y][threadIdx.x] =  iy<HEIGHT?A[iy*WIDTH+x]:0.0;
-            buffer_B[threadIdx.y][threadIdx.x] =  ix<WIDTH?B[y*WIDTH+ix]:0.0;
-
-            __syncthreads();
-
-            double result = 0;
-            for (int k=0;k<BLOCK_SIZE;k++) {
-                result+=buffer_A[threadIdx.y][k]*buffer_B[k][threadIdx.x];
-            }
-
-            total[threadIdx.y][threadIdx.x]+=result;
-           
-
-            ix+=BLOCK_SIZE;
-            iy+=BLOCK_SIZE;
-        }
-
-        __syncthreads();
-
-        C[y*WIDTH+x] = total[threadIdx.y][threadIdx.x];
+        C[y*WIDTH+x] = result;
     }
 }
 
@@ -102,11 +78,8 @@ void dispose(float** mtx,int height) {
 }
 
 int main(int argc, char**argv) {
-    const int WIDTH = 1000;
-    const int HEIGHT = 1000;
-    const int N = WIDTH*HEIGHT;
-    const int ROW_SIZE = sizeof(float)*WIDTH;
-    const int SIZE = sizeof(float)*N; 
+    const int WIDTH = 1500;
+    const int HEIGHT = 1500;
 
     float** A = generateTwoDimensionalArray(WIDTH,HEIGHT,1000);
     float** B = generateTwoDimensionalArray(WIDTH,HEIGHT,1000);
