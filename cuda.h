@@ -79,6 +79,11 @@ struct CudaContext {
         return blocks;
     }
 
+    dim3 getBlocks(int rows,int columns,int blockSize) {
+        dim3 blocks(ceil((rows+blockSize)/blockSize),ceil((columns+blockSize)/blockSize));
+        return blocks;
+    }
+
     int getThreads(uint N) {
         return 1024;
     }
@@ -172,6 +177,14 @@ struct CudaContext {
 
     void synchronize() {
         synchronize(NULL);
+    }
+
+    void synchronize(void** hostData,int width,int height) {
+       for (int i=0;i<cudaPointerCount;i++) {
+           if (twoDimensionalHostPointers[i]==hostData) {
+               synchronize(hostPointers[i]);
+           }
+       }
     }
 
     void synchronize(void* ptr) {
