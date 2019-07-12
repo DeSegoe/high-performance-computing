@@ -4,7 +4,8 @@
 #include <string.h>
 #include "cuda.h"
 
-#define BLOCK_SIZE 32
+#define BLOCK_SIZE 128
+#define NUM_ELEMENTS_PER_THREAD 1024
 
 typedef unsigned char uchar;
 typedef unsigned int uint;
@@ -20,34 +21,36 @@ __global__ void consolidateHistogram(ulong*blockHistograms,ulong* cudaHistogram,
 
 __global__ void calculateHistogram(uchar* data,ulong* blockHistograms,ulong N) {
     int tid = threadIdx.x;
-    uint x = threadIdx.x+blockIdx.x*blockDim.x;
+    int x = threadIdx.x+blockIdx.x*blockDim.x;
 
     if (x<N) {
-        __shared__ ulong sHistogram[BLOCK_SIZE][256];
-        for (int i=0;i<256;i++)
-            sHistogram[tid][i] = 0;
+        __shared__ int sHistogram[512];
+
+        int blockSize = 512/BLOCK_SIZE;
+        int startIndex = tid*blockSize;
+        int endIndex = startIndex+blockSize;
+        if (tid==BLOCK_SIZE-1)
+            endIndex+= 512%BLOCK_SIZE;
+
+        for (int i=startIndex;i<endIndex;i++)
+            sHistogram[i] = 0;
+        
         __syncthreads();
 
-        uint index = x;
-        for (int i=0;i<256;i++) {
+        int index = x;
+        for (int i=0;i<NUM_ELEMENTS_PER_THREAD;i++) {
             if (index>=N)
                 break;
-            sHistogram[tid][data[index]]++;
+            int offset = 256*(threadIdx.x%2);
+            atomicAdd(&sHistogram[offset+data[index]],1);
             index+=BLOCK_SIZE;
         }
 
         __syncthreads();
 
-        int blockSize = 256/32;
-        int startIndex = tid*blockSize;
-        int endIndex = startIndex+blockSize;
-        if (tid==BLOCK_SIZE-1)
-            endIndex+= 256%32;
-        
-        uint offset = 256*blockIdx.x;
+        int offset = 256*blockIdx.x;
         for (int i=startIndex;i<endIndex;i++) {
-            for (int j=0;j<BLOCK_SIZE;j++)
-                blockHistograms[offset+i]+=sHistogram[j][i];
+            blockHistograms[offset+(i%256)]+=sHistogram[i];
         }
     }
 }
@@ -125,7 +128,7 @@ int main(int argc,char** argv) {
     start = omp_get_wtime();
     ulong* cudaHistogram = (ulong*) malloc(sizeof(ulong)*256);
     memset(cudaHistogram,0,sizeof(ulong)*256);
-    uint numBlocks = (DATA_SIZE+32*256)/ (32*256);
+    uint numBlocks = (DATA_SIZE+BLOCK_SIZE*NUM_ELEMENTS_PER_THREAD)/ (BLOCK_SIZE*NUM_ELEMENTS_PER_THREAD);
     ulong* blockHistograms = (ulong*) malloc(sizeof(ulong)*numBlocks*256);
     for (int i=0;i<numBlocks*256;i++)
         blockHistograms[i] = 0;
@@ -135,7 +138,7 @@ int main(int argc,char** argv) {
 
     ulong* deviceBlockHistogram = (ulong*)cudaContext.cudaInOut((void*) blockHistograms,sizeof(ulong)*numBlocks*256);
 
-    calculateHistogram<<<numBlocks,32>>>(
+    calculateHistogram<<<numBlocks,BLOCK_SIZE>>>(
         (uchar*)cudaContext.cudaIn((void*) data,sizeof(uchar)*DATA_SIZE),
         deviceBlockHistogram,
         DATA_SIZE);
