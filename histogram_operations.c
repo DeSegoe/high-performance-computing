@@ -75,6 +75,19 @@ int main(int argc,char** argv) {
     printf("Parallel operation took %.5f seconds to run. Speed up %.1f\n",parallelDuration,serialDuration/parallelDuration);
 
     validate(serialHistogram,parallelHistogram);
+
+    start = omp_get_wtime();
+    memset(parallelHistogram,0,sizeof(ulong)*256);
+    #pragma omp parallel for
+    for (uint i=0;i<DATA_SIZE;i++ ) {
+        parallelHistogram[data[i]]++;
+    }
+    end = omp_get_wtime();
+    parallelDuration = end-start;
+    printf("Parallel for operation took %.5f seconds to run. Speed up %.1f\n",parallelDuration,serialDuration/parallelDuration);
+    printf("The perfomrance is bad probably because of false sharing\n");
+    validate(serialHistogram,parallelHistogram);
+    
     free(data);
 
     return 0;

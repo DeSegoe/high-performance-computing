@@ -20,7 +20,6 @@ void otsu(uchar* image, const uint WIDTH, const uint HEIGHT) {
 
     //calculate the histogram
     uint sum = 0;
-    #pragma omp parallel for
     for (int i=0;i<SIZE;i++) {
         uchar pixelIntensity = image[i];
         sum+=pixelIntensity;
@@ -88,7 +87,7 @@ void validate(int argc,char** argv) {
 }
 
 struct BmpImage performOtsuThresholding(struct BmpImage bmpImage) {
-    ulong start = omp_get_wtick();
+    double start = omp_get_wtime();
     #pragma omp parallel
     {
         #pragma omp single
@@ -105,8 +104,8 @@ struct BmpImage performOtsuThresholding(struct BmpImage bmpImage) {
         }
     }
    
-    ulong end = omp_get_wtick();
-    printf("Duration %u\n",end-start);
+    double end = omp_get_wtime();
+    printf("Duration %.5f\n",end-start);
     return bmpImage;
 }
 
