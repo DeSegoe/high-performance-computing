@@ -305,7 +305,7 @@ uchar* createImageCopy(uchar* original,const uint size) {
 
 void edgeDetectionOnColorImage(char* filePath) {
     struct BmpImage bmpImage = loadWindowsBpm(filePath);
-    double start = omp_get_wtick();
+    double start = omp_get_wtime();
     int size = bmpImage.image_width*bmpImage.image_height;
     uchar* r_channel = createImageCopy(bmpImage.r_channel,size);
     uchar* g_channel = createImageCopy(bmpImage.g_channel,size);
@@ -338,7 +338,7 @@ void edgeDetectionOnColorImage(char* filePath) {
 
     writeBpmImage("./data/sharpened_using_color_edges.bmp",bmpImage);
 
-    double end = omp_get_wtick();
+    double end = omp_get_wtime();
     printf("Duration %.8f\n",end-start);
     free(r_channel);
     free(g_channel);
