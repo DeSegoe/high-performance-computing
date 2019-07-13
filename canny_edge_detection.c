@@ -59,7 +59,7 @@ void freeMatrix(float** matrix,int WIDTH,int HEIGHT) {
 
 void applyFilterToImage(float** kernel,float* image, float* outputImage, const uint WIDTH, const uint HEIGHT, const int MASK_WIDTH, const int MASK_HEIGHT) {
     int MASK_OFFSET = MASK_HEIGHT/2;
-    #pragma omp parallel for collapse(2)
+    
     for (int y=0;y<HEIGHT;y++) {
         for (int x=0;x<WIDTH;x++) {
             int offset = y*WIDTH+x;
@@ -158,7 +158,6 @@ void edgeDetection(uchar* image, const uint WIDTH, const uint HEIGHT) {
     float** robertsHorizontalFilter = loadMask("./mask_files/roberts_horizontal.txt",&roberts_width,&roberts_height);
     float** robertsVerticalFilter = loadMask("./mask_files/roberts_vertical.txt",&roberts_width,&roberts_height);
 
-    #pragma omp parallel for
     for (int k=0;k<SIZE;k++) {
         *(inputImageAsFloat+k) = (float) image[k];
         *(smoothedImage+k) = 0;
@@ -250,7 +249,6 @@ void edgeDetection(uchar* image, const uint WIDTH, const uint HEIGHT) {
     } 
 
     //final transformation
-     #pragma omp parallel for
     for (int i=0;i<SIZE;i++) {
         float finalValue = finalResultHighThreshold[i];
         if (finalValue<0)
