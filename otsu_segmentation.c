@@ -20,11 +20,32 @@ void otsu(uchar* image, const uint WIDTH, const uint HEIGHT) {
 
     //calculate the histogram
     uint sum = 0;
-    for (int i=0;i<SIZE;i++) {
-        uchar pixelIntensity = image[i];
-        sum+=pixelIntensity;
-        histogram[pixelIntensity]++;
+    #pragma omp parallel reduction(+:sum)
+    {
+        int partialHistogram[256];
+        memset(partialHistogram,0,sizeof(int)*256);
+        int tid = omp_get_thread_num();
+        int num_t = omp_get_num_threads();
+        int partition_size = SIZE/num_t;
+        int start_index = tid*partition_size;
+        int end_index = start_index+partition_size;
+        if (tid==num_t-1)
+            end_index+=SIZE%num_t;
+
+        for (int i=start_index;i<end_index;i++) {
+            uchar pixelIntensity = image[i];
+            partialHistogram[pixelIntensity]++;
+            sum+=pixelIntensity;
+        }
+
+        for (int i=0;i<256;i++) {
+            #pragma omp critical
+            {
+                histogram[i]+=partialHistogram[i];
+            }
+        }
     }
+    
 
     const float mg = ((float) sum)/SIZE;
 
