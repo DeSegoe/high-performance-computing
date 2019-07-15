@@ -6,7 +6,7 @@ MATH_FLAG=-lm
 
 all: otsu_segmentation canny_detection cluster_segmentation histogram multiplication
 
-cuda: cuda_dev cuda_aggregate cuda_histogram cuda_multiplication cuda_sort
+cuda: cuda_dev cuda_aggregate cuda_histogram cuda_multiplication
 
 otsu_segmentation: otsu_segmentation.c bmp_image_util.h
 	$(CC) $(OMP_FLAG) $(MATH_FLAG) otsu_segmentation.c -o otsu_segmentation.exe
@@ -40,9 +40,6 @@ cuda_histogram: histogram_operations.cu cuda.h
 
 cuda_multiplication: multiplication_operations.cu cuda.h
 	$(NVCC) $(CUDA_OMP_FLAG) .\multiplication_operations.cu -o cuda_multiplication_operations.exe
-
-cuda_sort: cuda_sort.cu cuda.h
-	$(NVCC) $(CUDA_OMP_FLAG) .\cuda_sort.cu -o cuda_sort.exe
 
 clean:
 	rm -Force *.exe *.exp *.lib
